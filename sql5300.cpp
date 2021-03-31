@@ -79,6 +79,41 @@ int main(int argc, char*argv[]){
       }
    }while(promptUser);
 
+   try{
+      myEnv->close(0);
+   }catch(DbException &e){
+      cerr << "Error: unable to close the " << dbenv << " database environment. \n";
+      cerr << e.what() << endl;
+      return 1;
+   }catch(Exception &e){
+      cerr << "Error: unable to close the db" << endl;
+      cerr << e.what() << endl;
+      return 1;
+   }
+   return 0;
+}
+
+string toLowercase(string word){
+   string result;
+   for(unsigned i = 0; i < word.length(); i++){
+      result += toLower(word[i]);
+   
+   }
+   return result;
+}
+
+string operatorToString(const Expr* expr){
+   if(!expr){
+      return "null";
+   }
+
+   string operatorResult;
+
+   if(expr-> opType ==  Expr::NOT){
+      operatorResult += "NOT";
+   }
 
 
 }
+
+
