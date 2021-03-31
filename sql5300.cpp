@@ -112,8 +112,63 @@ string operatorToString(const Expr* expr){
    if(expr-> opType ==  Expr::NOT){
       operatorResult += "NOT";
    }
+   operatorResult += expressionToString(expr->expr) + " ";
+   if(expr->opType == Expr::SIMPLE_OP){
+      operatorResult += expr->opChar;
+   }else if(expr->opType == Expr::AND){
+      operatorResult += "AND";
+   }else if(expr->opType == Expr::OR){
+      operatorResult += "OR";
+   }
 
+   if(expr->expr2 != NULL){
+      operatorResult += " " + expressionToString(expr->expr2);
+   }
+
+   return operatorResult;
+}
+
+string expressionToString(const Expr *expr){
+   if(expr == NULL){
+      return "null";
+   }
+   string exprResult;
+   switch(expr->type){
+      case kExprStar:
+         exprResult += "*";
+         break;
+      case kExprColumnRef:
+         if(expr->table != null){
+            exprResult += string(expr->table) + ".";
+         }
+      case kExprLiteralString:
+         exprResult += expr->name;
+         break;
+      case kExprLiteralFloat:
+         exprResult += to_string(expr->fval);
+         break;
+      case kExprLiteralInt:
+         exprResult += to_string(expr->ival);
+         break;
+      case kExprFunctionRef:
+         exprResult += string(expr->name) + "? " + expr->expr->name;
+         break;
+      case kExprOperator:
+         exprResult += operatorToString(expr);
+         break;
+      default:
+         exprResult +=  "unkonw expression";
+         break;
+
+   }
+
+   if(expr->alias != NULL){
+      exprResult += string("AS") + expr->alias;
+   }
+   return exprResult;
 
 }
+
+
 
 
