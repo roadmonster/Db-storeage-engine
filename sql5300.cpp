@@ -159,7 +159,35 @@ class SqlRunner{
    }
 
    void doSelect(const SelectStatement* selStmt){
+      int i = 0;
 
+      int size = (*selStmt->slectList).size();
+
+      cout << "SELECT ";
+      // step throught the select list and parse each expression within the vector
+      for(Expr* expr: *selStmt->selectList){
+         parseExpression(expr);
+         // increment the counter
+         i++;
+
+         // if the counter  == size means this is the last item to select
+         // hence no need to have ',' 
+         if(i < size)
+            cout << ", ";
+
+         cout << "FROM "
+         
+         // parse the table after 'from'
+         parseTable(selStmt->fromTable);
+
+         if(selStmt->whereClause != NULL){
+            cout << "WHERE ";
+            parseExpression(selStmt->whereClause->expr);
+            cout<< " " << selStmt->whereClause->opChar << " ";
+            parseExpression(selStmt->whereClause->expr2);
+         }
+
+      }
    }
 
    void doCreate(const CreateStatement* createStmt){
