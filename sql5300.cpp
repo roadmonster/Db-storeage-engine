@@ -267,21 +267,17 @@ class SqlRunner{
          }else{
             cout << "Invalid statement" << endl;
          }
-
       }
    }
 };
 
 int main(int argc, char* argv[]){
-   
    if(argc != 2){
       cout << "Requireing db env path\n Sample [./sql5300 filepath]\n";
       exit(1);
    }
    char* path = argv[1];
-
    SqlRunner myRunner;
-
    myRunner.run(path);
 
 }
