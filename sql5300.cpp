@@ -230,6 +230,17 @@ class SqlRunner{
    }
 
    void doQuery(const SQLStatement* stmt){
+      switch(stmt->type){
+         case kStmtSelect:
+            doSelect((const SelectStatement*)stmt);
+            break;
+         case kStmtCreate:
+            doCreate((const CreateStatement*)stmt);
+            break;
+         
+         default: break;
+      }
+      cout << endl;
 
    }
    public:
