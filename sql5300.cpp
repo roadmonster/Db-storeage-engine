@@ -17,158 +17,200 @@
 using namespace std;
 using namespace hsql;
 
-string toLowercase(string word);
+class SqlRunner{
 
-string operatorToString(const Expr* expr);
+   DbEnv *_DB_ENV;
 
-string expressionToString(const Expr*expr);
+   bool initial = false;
 
-string columnToString(const ColumnDefinition *col);
+   void initialize_env(char* envHome){
+      // get the ptr to envrionment home
+      const char* home = getenv(envHome);
+      // initiallize the DbEnv
+      DbEnv env(0U);
+      // configure the DbEnv
+      env.set_message_stream(&std::cout);
+      env.set_error_stream(&std::cerr);
+      // open the environment with in mem cache
+      env.open(envHome, DB_CREATE|DB_INIT_MPOOL, 0);
 
-string tableToString(const TableRef *table);
+      // initialize the db
+      Db db(&env, 0);
+      // set the flag to true
+      initial = true;
 
-string executeCreate(const CreateStatement *stmt);
-
-string executeSelect(const SelectStatement *stmt);
-
-string execute(const SQLStatement *stmt);
-
-int main(int argc, char*argv[]){
-
-   bool promptUser = true;
-   string query;
-
-   if(argc != 2){
-      cerr << "Error: invalid command input. \nFormat is [sql5300: directory]\n";
-      return 1;
    }
 
-   char* dbenv= argv[1];
-   DbEnv *myEnv = new DbEnv(0U);
-   
-   try{
-      myEnv->open(dbenv, DB_CREATE | DB_INIT_MPOOL, 0);
-   }catch(DbException &e){
-      cerr << "Error: unable to open the " << dbenv << "database environment \n";
-      cerr << e.what() << endl;
-      return 1;
+   // Main util method to parse each componenet of the stmt
+   void parseExpression(const Expr* expr){
+      // judge the expression type
+      switch (expr->type)
+      {
+         case kExprStart:
+            cout << "*";
+            break;
+         case kExprColumnRef:
+            if(expr->table != NULL){
+               cout<< expr->table << ".";
+            }
+            cout << express->name;
+            break;
+         case kExprOperator:
+            getExpression(expr->expr);
+            cout << " " << expr->opChar << " ";
+            getExpression (exception->expr2);
+            break;
+         case kExprLiteralFloat:
+            cout << expr->fval;
+            break;
+         case kExprLiteralInt:
+            cout << expr->ival;
+            break;
+         case kExprLiteralString:
+         cout << expr->name;
+            break;
+
+         default:
+            cout << "Invalid expression" << endl;
+            break;
+      }
+      if(expr->alias != NULL){
+         cout << "AS ";
+         cout << expr->alias << " ";
+      }
    }
 
-   cout << "(" << argv[0] << ": running with database environment at " << dbenv << ")" << endl;
-   
-   do{
-      cout << "SQL>";
-      getline(cin, query);
-      while(query.length() == 0){
-         cout << "SQL>";
-	 getline(cin,query);
+   // parse the table componenent of the stmt
+   void parseTable(TableRef* tb){
+      // judge the type of the table stmt
+      switch (tb->type)
+      {
+         case kTableName:
+            cout << tb->name << " ";
+            break;
+         case kTableJoin:
+            parseJoin(tb->join);
+            break;
+
+         case kTableCrossProduct:
+            for(TableRef* t: *tb->list){
+               parseTable(t);
+            }
+            break;
+         default:
+            cout << "Invlid table" << endl;
+            break;
       }
 
-      if(toLowercase(query) == "quit"){
-         promptUser = false;
-      }else{
-         SQLParserResult *result = SQLParser::parserSQLString(query);
-	 if(result->isValid()){
-	    for(unsigned i = 0; i < result->size(); i++){
-	       cout << execute(result->getStatement(i)) << endl;
-	    
-	    }
-	 }else{
-	    cout<< "Error invalid SQL:" << query << endl;
-	 }
+      // check if has alias
+      if(tb->alias != NULL){
+         cout << "AS ";
+         cout << tb->alias << " ";
       }
-   }while(promptUser);
 
-   try{
-      myEnv->close(0);
-   }catch(DbException &e){
-      cerr << "Error: unable to close the " << dbenv << " database environment. \n";
-      cerr << e.what() << endl;
-      return 1;
-   }catch(Exception &e){
-      cerr << "Error: unable to close the db" << endl;
-      cerr << e.what() << endl;
-      return 1;
-   }
-   return 0;
-}
-
-string toLowercase(string word){
-   string result;
-   for(unsigned i = 0; i < word.length(); i++){
-      result += toLower(word[i]);
-   
-   }
-   return result;
-}
-
-string operatorToString(const Expr* expr){
-   if(!expr){
-      return "null";
    }
 
-   string operatorResult;
+   // parse the join statement
+   void parseJoin(JoinDefinition *joinStmt){
+      // parse the left part
+      parseTable(joinStmt->left);
 
-   if(expr-> opType ==  Expr::NOT){
-      operatorResult += "NOT";
-   }
-   operatorResult += expressionToString(expr->expr) + " ";
-   if(expr->opType == Expr::SIMPLE_OP){
-      operatorResult += expr->opChar;
-   }else if(expr->opType == Expr::AND){
-      operatorResult += "AND";
-   }else if(expr->opType == Expr::OR){
-      operatorResult += "OR";
+      // parse the join type
+      switch (joinStmt->type)
+      {
+         case kJoinInner:
+            cout << "INNER JOIN ";
+            break;
+         case kJoinOuter:
+            cout << "OUTER JOIN ";
+            break;
+
+         case kJoinLeft:
+            cout << "LEFT JOIN ";
+            break;
+
+         case kJoinRight:
+            cout << "RIGHT JOIN ";
+            break;
+         
+         case kJoinLeftOuter:
+            cout << "LEFT OUTER JOIN ";
+            break;
+         
+         case kJoinRightOuter:
+            cout << "RIGHT OUTER JOIN ";
+            break;
+         case kJoinCross: 
+            cout << "JOIN CROSS";
+            break;
+         case kJoinNatural: 
+            cout << "NATURAL JOIN ";
+            break;
+         default: 
+            break;
+
+      // parse the right table
+      parseTable(joinStmt->right);
+      cout << "ON ";
+
+      // finally parse the condition
+      parseExpression(joinStmt->condition);
+      cout << " ";
    }
 
-   if(expr->expr2 != NULL){
-      operatorResult += " " + expressionToString(expr->expr2);
+   void doSelect(const SelectStatement* selStmt){
+
    }
 
-   return operatorResult;
-}
+   void doCreate(const CreateStatement* createStmt){
 
-string expressionToString(const Expr *expr){
-   if(expr == NULL){
-      return "null";
    }
-   string exprResult;
-   switch(expr->type){
-      case kExprStar:
-         exprResult += "*";
-         break;
-      case kExprColumnRef:
-         if(expr->table != null){
-            exprResult += string(expr->table) + ".";
+
+   void doQuery(const SQLStatement* stmt){
+
+   }
+   public:
+   void run(char* path){
+      cout << "Enter quit to quit\n";
+      if(!initial){
+         initialize_env(path);
+      }
+
+      while(true){
+         string query;
+         cout<< "SQL>";
+
+         getline(cin, query);
+
+         if(query == "quit"){
+            return;
          }
-      case kExprLiteralString:
-         exprResult += expr->name;
-         break;
-      case kExprLiteralFloat:
-         exprResult += to_string(expr->fval);
-         break;
-      case kExprLiteralInt:
-         exprResult += to_string(expr->ival);
-         break;
-      case kExprFunctionRef:
-         exprResult += string(expr->name) + "? " + expr->expr->name;
-         break;
-      case kExprOperator:
-         exprResult += operatorToString(expr);
-         break;
-      default:
-         exprResult +=  "unkonw expression";
-         break;
 
-   }
+         SQLParseResult* result = SQLParser::parseSQLString(query);
 
-   if(expr->alias != NULL){
-      exprResult += string("AS") + expr->alias;
+         if(parse -> isValid()){
+            doQuery(parse->getStatement(0));
+         }else{
+            cout << "Invalid statement" << endl;
+         }
+
+      }
    }
-   return exprResult;
+};
+
+int main(int argc, char* argv[]){
+   
+   if(argc != 2){
+      cout << "Requireing db env path\n Sample [./sql5300 filepath]\n";
+      exit(1);
+   }
+   char* path = argv[1];
+
+   SqlRunner myRunner;
+
+   myRunner.run(path);
 
 }
-
 
 
 
