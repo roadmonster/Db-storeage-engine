@@ -191,7 +191,42 @@ class SqlRunner{
    }
 
    void doCreate(const CreateStatement* createStmt){
+      int size = (*createStmt->columns).size();
+      int i = 0;
 
+      cout << "CREATE ";
+      switch (createStmt->type)
+      {
+         case CreateStatement::kTable:
+            cout << "TABLE " << createStmt->tablename << " (";
+            for(ColumnDefinition* c_def: *createStmt->columns){
+               cout << *c_def->name;
+               switch(c_def->type){
+                  case ColumnDefinition:: TEXT:
+                     cout << " TEXT"
+                     break;
+                  case ColumnDefinition::INT:
+                     cout << " INT";
+                     break;
+                  case ColumnDefinition::DOUBLE:
+                     cout << " DOUBLE";
+                     break;
+                  default: ;
+               }
+               i++;
+               if(i < size){
+                  cout << ", ";
+               }
+
+            }
+            cout << ")"
+            break;
+         
+         
+         default:
+            cout << "invalid statement \n";
+            break;
+      }
    }
 
    void doQuery(const SQLStatement* stmt){
