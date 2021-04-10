@@ -127,11 +127,21 @@ RecordIDs* SlottedPage::ids(void){
     return records;
 }
 
+/**
+ * Pass in the reference of the size and location variable
+ * call the get_n() to get the values for each variable
+ * */
 void SlottedPage::get_header(u16& size, u16& loc, RecordID id){
     size = get_n(4 * id);
     loc = get_n( 4 * id + 2);
 }
 
+/**
+ * Update the header
+ * if id is 0 then it is the size and location of this block
+ * otherwise, update the slot at the 4 times id because each size + location totally
+ * take 4 bytes hence the slot for size should be 4 * id and location should be 4 * id + 2
+ * */
 void SlottedPage::put_header(RecordID id, u16 size, u16 loc){
     if(id == 0){
         size = this->num_records;
@@ -141,13 +151,33 @@ void SlottedPage::put_header(RecordID id, u16 size, u16 loc){
     put_n(((u16)4 * id + 2), loc);
 }
 
+/**
+ * Calculate the available space by have endfree - (total number of records + the info of 
+ * the block which also takes 4 bytes) * 4 and cast the result back to u16
+ * */
 bool SlottedPage::has_room(u16 size){
     u16 avail_size = this->end_free - (u16)((this->num_records + 1) * 4);
     return size <= avail_size;
 }
 
 void SlottedPage::slide(u16 start, u16 end){
+    u16 shift = end - start;
+    u16 size, loc;
+    if(shift == 0)
+        return;
+    
+    memcpy(this->address(end_free + 1), this->address(end_free + 1 + shift), shift);
 
+    RecordIDs* records = ids();
+    for(RecordIDs::iterator i = records->begin(); i != records->end(); i++){
+        get_header(size, loc, *i);
+        if(loc <= start){
+            put_header(*i, size, loc+shift);
+        }
+    }
+
+    end_free += shift;
+    put_header();
 }
 
 // get 2-byte int at given offset to the block addr
@@ -169,22 +199,50 @@ void* SlottedPage::address(u16 offset){
  */
 
 void HeapFile::create(){
-
+    this->db_open(DB_CREATE|DB_EXCL);
+    this->get_new();
 }
 
 void HeapFile::drop(){
-
+    this->close();
+    remove(this->dbfilename.c_str());
 }
 
 void HeapFile::open(){
-
+    this->db_open();
 }
 
 void HeapFile::close(){
-
+    this->db.close(0);
+    this->closed = true;
 }
 
 SlottedPage* HeapFile::get_new(void){
+    char block[DbBlock::BLOCK_SZ];
+    memset(block, 0, sizeof(block));
+    Dbt data(block, sizeof(block));
 
+    int block_id = ++this->last;
+    Dbt key(&block_id, sizeof(block_id));
+
+    SlottedPage* page = new SlottedPage(data, this->last, true);
+    this->db.put(nullptr, &key, &data, 0);
+    this->db.get(nullptr, &key, &data, 0);
+    return page;
+}
+
+SlottedPage* HeapFile::get(BlockID block_id){
+    char block[DbBlock::BLOCK_SZ];
+    Dbt data(block, sizeof(block));
+    Dbt key(&block_id, sizeof(block_id));
+    this->db.get(nullptr, &key, &data, 0);
+    SlottedPage* page  = new SlottedPage(data, block_id, false);
+    return page;
+}
+
+void HeapFile::put(DbBlock* block){
+    void* blockData = block->get_data();
+    Dbt data(blockData, DbBlock::BLOCK_SZ);
+    int block_id = block->get_block_id();
 }
 
