@@ -244,5 +244,31 @@ void HeapFile::put(DbBlock* block){
     void* blockData = block->get_data();
     Dbt data(blockData, DbBlock::BLOCK_SZ);
     int block_id = block->get_block_id();
+    Dbt key(&block_id, sizeof(block_id));
+    this->db.put(nullptr, &key, &data, 0);
+}
+
+BlockIDs* HeapFile::block_ids(){
+    BlockIDs* myBlocks = new BlockIDs();
+    for(BlockID i = 1; i <= this->last; i++){
+        myBlocks->push_back(i);
+    }
+    return myBlocks;
+}
+
+void HeapFile::db_open(unsigned int flags){
+    if(!this->closed){
+        return;
+    }
+
+    const char* envHome = nullptr;
+    _DB_ENV->get_home(&envHome);
+    string path = envHome;
+    this->dbfilename = "../" + path + "/" + this->name + ".db";
+    this->db.open(nullptr, this->dbfilename.c_str(), nullptr, DB_RECNO, flags, 0);
+    DB_BTREE_STAT *stat;
+    this->db.stat(nullptr, &stat, DB_FAST_START);
+    this->last = stat->bt_ndata;
+    this->closed = false;
 }
 
