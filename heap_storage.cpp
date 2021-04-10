@@ -272,3 +272,108 @@ void HeapFile::db_open(unsigned int flags){
     this->closed = false;
 }
 
+/**
+ * Heap Table Implementations
+ * */
+
+HeapTable::HeapTable(Identifier table_name, ColumnNames columnNames, ColumnAttributes column_attrbutes): DbRelation(table_name, column_attrbutes), file(table_name){};
+
+void HeapTable::create(){
+    this->file.create();
+}
+
+void HeapTable::create_if_not_exists(){
+    try{
+        this->file.open();
+    }catch(DbException &e){
+        this->file.create();
+    }
+}
+
+void HeapTable::drop(){
+    this->file.drop();
+}
+
+void HeapTable::open(){
+    this->file.open();
+}
+
+void HeapTable::close(){
+    this->file.close();
+}
+
+Dbt* HeapTable::marshall(const ValueDict* row){
+    // create an empty char array to hold the marshalled results
+    char*bytes = new char[DbBlock::BLOCK_SZ];
+
+    // set initial offset as 0 and column_num as 0
+    unsigned int offset = 0, column_num = 0;
+
+    
+    // iterate through all the column attributes 
+    // for each column get the (name, value) pair from the ValueDict object
+    // check the data attribute of the column if INT then set the current data spot(bytes + offset) as the value
+    // of this column
+    // same idea for the string
+    for(auto const& column_name: this->column_names){
+        ColumnAttribute ca = this->column_attributes[column_num++];
+        ValueDict::const_iterator column = row->find(column_name);
+        Value value = column->second;
+        if(ca.get_data_type() == ColumnAttribute::INT){
+            *(int32_t*)(bytes + offset) = value.n;
+            offset += sizeof(int32_t);
+        }else if(ca.get_data_type() == ColumnAttribute::TEXT){
+            unsigned int size = value.s.length();
+            *(u16*)(bytes + offset) = size;
+            offset += sizeof(u16);
+            memcpy(bytes + offset, value.s.c_str(), size);
+            offset += size;
+
+        }else{
+            throw DbRelationError("Only able to marshal INT and TEXT");
+        }
+
+    }
+    char *right_size_bytes = new char[offset];
+    memcpy(right_size_bytes, bytes, offset);
+    delete[]bytes;
+    Dbt *data = new Dbt(right_size_bytes, offset);
+    return data;
+
+}
+/**
+ * Directly opposite of the operations of marshall
+ * Don't forget to add terminating ptr at the end of the string
+ * */
+ValueDict* HeapTable::unmarshall(Dbt* data){
+    ValueDict* row = new ValueDict();
+    char* bytes = (char*)data->get_data();
+    unsigned int offset = 0, column_num = 0;
+    Value val;
+    for(auto const& column_name: this->column_names){
+        ColumnAttribute ca = this->column_attributes[column_num++];
+        val.data_type = ca.get_data_type();
+        if(val.data_type == ColumnAttribute::INT){
+            val.n = *(*int32_t)(byte + offset);
+            offset += sizeof(int32_t);
+        }else if(val.data_type == ColumnAttribute::TEXT){
+            unsigned int size = *(*u16)(bytes + offset);
+            offset += sizeof(u16);
+            char myData[DbBlock::BLOCK_SZ];
+            memcpy(myData, bytes + offset, size);
+            myData[size] = '\0';
+            val.s = string(myData);
+            offset += size;
+        }else{
+            throw new DbRelationError("Can only unmarshall TEXT or INT");
+        }
+
+        (*row)[column_name] = val;
+    }
+    return row;
+}
+
+Handles* HeapTable::select(){
+    // TO DO
+    Handles* handles = new Handles();
+}
