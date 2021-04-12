@@ -217,6 +217,16 @@ void HeapFile::close(){
     this->closed = true;
 }
 
+/**
+ * Allocate a new block for the database file
+ * Initialize a block first
+ * Allocate memory for that block
+ * create a Dbt object (data) for BerKDB to work with
+ * incrementing the last record id of HeapFile and make it block id
+ * Create the Dbt key and Call the BerkDB to put this empty block into databse
+ * Then read it back. 
+ * Finally initialize the SlottedPage on this data and return it.
+ **/
 SlottedPage* HeapFile::get_new(void){
     char block[DbBlock::BLOCK_SZ];
     memset(block, 0, sizeof(block));
@@ -231,6 +241,14 @@ SlottedPage* HeapFile::get_new(void){
     return page;
 }
 
+/**
+ * Request a block by intializing a char array with BLOCK_SZ(4096)
+ * Create a Dbt object (data) with the ptr to the char array and its size
+ * Create a Dbt key with the reference to the block_id and its size
+ * Use the key to call BerKDB to get the wanted data and put it into the data object
+ * we created
+ * Finally initialize a SlottedPage object with the datablock and its block_id
+ * */
 SlottedPage* HeapFile::get(BlockID block_id){
     char block[DbBlock::BLOCK_SZ];
     Dbt data(block, sizeof(block));
@@ -240,6 +258,13 @@ SlottedPage* HeapFile::get(BlockID block_id){
     return page;
 }
 
+/**
+ * Write a block to the database file
+ * get data from the DbBlock object and intialize a new Dbt object: data
+ * Get the block id from the DbBlock object
+ * Initialize the Dbt key with the block id and the sizeof(blockid)
+ * finally call BerkDb to put key and data into the database
+ * */
 void HeapFile::put(DbBlock* block){
     void* blockData = block->get_data();
     Dbt data(blockData, DbBlock::BLOCK_SZ);
@@ -248,6 +273,10 @@ void HeapFile::put(DbBlock* block){
     this->db.put(nullptr, &key, &data, 0);
 }
 
+/**
+ * Need to return a vector of Block id. 
+ * Begin from block #1 to the last, add each one into the vector
+ **/
 BlockIDs* HeapFile::block_ids(){
     BlockIDs* myBlocks = new BlockIDs();
     for(BlockID i = 1; i <= this->last; i++){
@@ -256,6 +285,12 @@ BlockIDs* HeapFile::block_ids(){
     return myBlocks;
 }
 
+/**
+ * Initialze a nullptr for the envHome and call BerkDB
+ * to get the path to env home and formulate the name to the db file
+ * Then open the db file with BerKDB
+ * set the B_Tree status for it and set the closed flag false
+ **/
 void HeapFile::db_open(unsigned int flags){
     if(!this->closed){
         return;
@@ -376,4 +411,74 @@ ValueDict* HeapTable::unmarshall(Dbt* data){
 Handles* HeapTable::select(){
     // TO DO
     Handles* handles = new Handles();
+    BlockIDs* block_ids = this->file.block_ids();
+    for(auto const& block_id: *block_ids){
+        SlottedPage* block = this->file.get(block_id);
+        RecordIDs* record_ids = block->ids();
+        for(auto const& record_id: *record_ids){
+            handles->push_back(Handle(block_id, record_id));
+        }
+        delete record_ids;
+        delete block;
+    }
+    delete block_ids;
+    return handles;
+}
+
+Handles* HeapTable::select(const ValueDict* where){
+    // TO DO
+    return this->select();
+}
+
+
+ValueDict* HeapTable::project(Handle handle){
+    BlockID block_id = handle.first;
+    RecordID record_id = handle.second;
+    SlottedPage* block = this->file.get(block_id);
+    Dbt* data = block->get(record_id);
+    ValueDict* row = unmarshall(data);
+    delete data;
+    delete block;
+    return row;
+
+}
+ValueDict* HeapTable::project(Handle handle, const ColumnNames* columnNames){
+    // TO DO
+    return this->project();
+
+}
+
+ValueDict* HeapTable::validate(const ValueDict* row){
+    ValueDict* fullRow = new ValueDict();
+    for(auto const& column_name: this->column_names){
+        ValueDict::const_iterator column = row->find(column_name);
+        Value val;
+        if(column == row->end()){
+            throw DbRelationError("Error: NULL and default not implemented");
+        }else{
+            val = column->second;
+        }
+        *fullRow[column_name] = val;
+    }
+
+    return fullRow;
+}
+
+Handle HeapTable::append(const ValueDict* row){
+    u16 record_id;
+    Dbt* data = marshal(row);
+
+    SlottedPage* block = this->file.get(this->file.get_last_block_id());
+
+    try{
+        record_id = block->add(data);
+    }catch(DbBlockNoRoomError const& e){
+        block = this->file.get_new();
+        record_id = block->add(data);
+    }
+    this.file->file.put(block);
+    delete block;
+    delete data;
+    return Handle(this->file.get_last_block_id(), record_id);
+
 }
