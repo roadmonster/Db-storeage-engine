@@ -7,7 +7,6 @@
  * @author Kevin Lundeen
  * @see "Seattle University, CPSC5300, Summer 2018"
  */
-
 #pragma once
 
 #include <exception>
@@ -24,12 +23,10 @@ extern DbEnv* _DB_ENV;
 /*
  * Convenient aliases for types
  */
-typedef u_int16_t RecordID;
-typedef u_int32_t BlockID;
+typedef uint16_t RecordID;
+typedef uint32_t BlockID;
 typedef std::vector<RecordID> RecordIDs;
 typedef std::length_error DbBlockNoRoomError;
-// convenience type alias
-typedef std::vector<BlockID> BlockIDs; 
 
 /**
  * @class DbBlock - abstract base class for blocks in our database files 
@@ -47,7 +44,6 @@ typedef std::vector<BlockID> BlockIDs;
  * 	get_data()
  * 	get_block_id()
  */
-
 class DbBlock {
 public:
 	/**
@@ -64,7 +60,7 @@ public:
 	/**
 	 * Reinitialize this block to an empty new block.
 	 */
-	virtual void initialize_new() {}
+	//virtual void initialize_new() {}
 
 	/**
 	 * Add a new record to this block.
@@ -79,7 +75,7 @@ public:
 	 * @param record_id  which record to fetch
 	 * @returns          the data stored for the given record
 	 */
-	virtual Dbt* get(RecordID record_id) = 0;
+	virtual Dbt* get(RecordID record_id) const = 0;
 
 	/**
 	 * Change the data stored for a record in this block.
@@ -100,7 +96,7 @@ public:
 	 * Get all the record ids in this block (excluding deleted ones).
 	 * @returns  pointer to list of record ids (freed by caller)
 	 */ 
-	virtual RecordIDs* ids() = 0;
+	virtual RecordIDs* ids() const = 0;
 
 	/**
 	 * Access the whole block's memory as a BerkeleyDB Dbt pointer.
@@ -124,6 +120,9 @@ protected:
 	Dbt block;
 	BlockID block_id;
 };
+
+// convenience type alias
+typedef std::vector<BlockID> BlockIDs;  // FIXME: will need to turn this into an iterator at some point
 
 /**
  * @class DbFile - abstract base class which represents a disk-based collection of DbBlocks
@@ -186,11 +185,12 @@ public:
 	 * FIXME - not a good long-term approach, but we'll do this until we put in iterators
 	 * @returns  a pointer to vector of BlockIDs (freed by caller)
 	 */ 
-	virtual BlockIDs* block_ids() = 0;
+	virtual BlockIDs* block_ids() const = 0;
 
 protected:
 	std::string name;  // filename (or part of it)
 };
+
 
 /**
  * @class ColumnAttribute - holds dataype and other info for a column
@@ -201,6 +201,7 @@ public:
 		INT,
 		TEXT
 	};
+	ColumnAttribute() : data_type(INT) {}
 	ColumnAttribute(DataType data_type) : data_type(data_type) {}
 	virtual ~ColumnAttribute() {}
 
@@ -210,6 +211,7 @@ public:
 protected:
 	DataType data_type;
 };
+
 
 /**
  * @class Value - holds value for a field
@@ -223,14 +225,20 @@ public:
 	Value() : n(0) {data_type = ColumnAttribute::INT;}
 	Value(int32_t n) : n(n) {data_type = ColumnAttribute::INT;}
 	Value(std::string s) : s(s) {data_type = ColumnAttribute::TEXT; }
+
+	bool operator==(const Value &other) const;
+	bool operator!=(const Value &other) const;
 };
 
+// More type aliases
 typedef std::string Identifier;
 typedef std::vector<Identifier> ColumnNames;
 typedef std::vector<ColumnAttribute> ColumnAttributes;
 typedef std::pair<BlockID, RecordID> Handle;
 typedef std::vector<Handle> Handles;  // FIXME: will need to turn this into an iterator at some point
 typedef std::map<Identifier, Value> ValueDict;
+typedef std::vector<ValueDict*> ValueDicts;
+
 
 /**
  * @class DbRelationError - generic exception class for DbRelation
@@ -239,6 +247,7 @@ class DbRelationError : public std::runtime_error {
 public:
 	explicit DbRelationError(std::string s) : runtime_error(s) {}
 };
+
 
 /**
  * @class DbRelation - top-level object handling a physical database relation
@@ -259,7 +268,6 @@ public:
  *	project(handle)
  *	project(handle, column_names)
  */
-
 class DbRelation {
 public:
 	// ctor/dtor
@@ -349,10 +357,17 @@ public:
 	 */
 	virtual ValueDict* project(Handle handle, const ColumnNames* column_names) = 0;
 
+	/**
+	 * Return a sequence of values for handle given by column_names (from dictionary) 
+	 * (SELECT <column_names>).
+	 * @param handle        row to get values from
+	 * @param column_names  list of column names to project (taken from keys of dict)
+	 * @returns             dictionary of values from row (keyed by column_names)
+	 */
+	virtual ValueDict* project(Handle handle, const ValueDict* column_names);
+
 protected:
 	Identifier table_name;
 	ColumnNames column_names;
 	ColumnAttributes column_attributes;
 };
-
-
