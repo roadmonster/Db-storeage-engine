@@ -504,3 +504,42 @@ Handle HeapTable::append(const ValueDict* row){
     return Handle(this->file.get_last_block_id(), record_id);
 
 }
+
+bool test_heap_storage(){
+    ColumnNames column_names;
+    column_names.push_back("a");
+    column_names.push_back("b");
+
+    ColumnAttributes column_attrbutes;
+    ColumnAttribute ca(ColumnAttribute::INT);
+
+    column_attrbutes.push_back(ca);
+    ca.set_data_type(ColumnAttribute::TEXT);
+    column_attrbutes.push_back(ca);
+
+    HeapTable tb1("test_create_drop", column_names, column_attrbutes);
+
+    tb1.create();
+    cout << "create ok" << endl;
+
+    tb1.drop();
+    cout<< "drop ok" <<endl;
+
+    HeapTable tb2("test_data", column_names, column_attrbutes);
+    tb2.create_if_not_exists();
+    cout << "create_if_not_exists ok" << endl;
+    
+    ValueDict row;
+    row["a"] = Value(12);
+    row["b"] = Value("Hello");
+
+    tb2.insert(&row);
+    cout << "insert ok" << endl;
+
+    Handles* handles = table.select();
+    cout << "select ok" << handles->size() << endl;
+
+    return true;
+
+
+}
