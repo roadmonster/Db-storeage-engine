@@ -97,11 +97,36 @@ void Tables::del(Handle handle){
 }
 
 void Tables::get_columns(Identifier table_name, ColumnNames &column_names, ColumnAttributes& column_attributes){
+    ValueDict where;
+    where["table_name"] = table_name;
+    Handles* handles = Tables::columns_table->select(&where);
 
+    ColumnAttribute col_attr;
+    for(auto const& handle: *handles){
+        ValueDict* row = Tables::columns_table->project(handle);
+
+        Identifier col_name = (*row)["column_name"].s;
+        column_names.push_back(col_name);
+
+        col_attr.set_data_type((*row)["data_type"].s == "INT"? ColumnAttribute::INT, ColumnAttribute::TEXT);
+        column_attributes.push_back(col_attr);
+
+        delete row;
+    }
+
+    delete handles;
 }
 
-DbRelation& Tables::get_tables(Identifier table_namae){
-
+DbRelation& Tables::get_table(Identifier table_name){
+    if(Tables::table_cache.find(table_name) != Tables::table_cache.end())
+        return *Tables::table_cache[table_name];
+    
+    ColumnNames column_names;
+    ColumnAttributes col_attrs;
+    get_columns(table_name, column_names, col_attrs);
+    DbRelation* table = new HeapTable(table_name, column_names, col_attrs);
+    Tables:table_cache[table_name] = table;
+    return *table;
 }
 
 /**
@@ -110,10 +135,25 @@ DbRelation& Tables::get_tables(Identifier table_namae){
 const Identifier Columns::TABLE_NAME = "_columns";
 
 ColumnNames& Columns::COLUMN_NAMES(){
+    static ColumnNames cn;
+    if(cn.empty()){
+        cn.push_back("table_name");
+        cn.push_back("column_name");
+        cn.push_back("data_type");
+    }
+    return cn;
 
 }
 
 ColumnAttributes& Columns::COLUMN_ATTRIBUTES(){
+    static ColumnAttributes cas;
+    if(cas.empty){
+        ColumnAttribute ca(ColumnAttribute::TEXT);
+        cas.push_back(ca);
+        cas.push_back(ca);
+        cas.push_back(ca);
+    }
+    return cas;
 
 }
 
@@ -122,7 +162,13 @@ Columns::Columns(): HeapTable(TABLE_NAME, COLUMN_NAMES(), COLUMN_ATTRIBUTES()){
 }
 
 void Columns::create(){
+    HeapTable::create();
+    ValueDict row;
+    row["data_type"] = Value("TEXT");
+    row["table_name"] = Value("_tables");
+    row["column_name"] = Value("table_name");
 
+    insert(&row);
 }
 
 Handle Columns::insert(const ValueDict* row){
